@@ -189,7 +189,7 @@ END_CODE
 
         $self->parser->parse_from_file( $file, $fh );
 
-        return $self->_extract($output);
+        return $self->_code_with_output($output);
     }
 
 
@@ -203,10 +203,10 @@ END_CODE
 
         $self->parser->parse_from_filehandle( $file, $fh );
 
-        return $self->_extract($output);
+        return $self->_code_with_output($output);
     }
 
-    sub _extract {
+    sub _code_with_output {
         my( $self, $output ) = @_;
 
         return <<"END_TESTS";
