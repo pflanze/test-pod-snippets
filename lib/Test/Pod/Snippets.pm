@@ -1,132 +1,132 @@
-package Test::Pod::Snippets;
-BEGIN {
-  $Test::Pod::Snippets::AUTHORITY = 'cpan:YANICK';
-}
-{
-  $Test::Pod::Snippets::VERSION = '0.07';
-}
-# ABSTRACT: Generate tests from pod code snippets
-
-use warnings;
-use strict;
-use Carp;
-
-use Moose;
-use MooseX::SemiAffordanceAccessor;
-
-use Module::Locate qw/ locate /;
-use Params::Validate qw/ validate_with validate /;
-
-has parser => (
-    is => 'ro',
-    default => sub {
-        my $tps = Test::Pod::Snippets::Parser->new;
-        $tps->{tps} = shift;
-        return $tps;
-    },
-);
-
-has verbatim => (
-    reader => 'is_extracting_verbatim',
-    writer => 'extracts_verbatim',
-    default => 1,
-);
-
-has methods => (
-    reader => 'is_extracting_methods',
-    writer => 'extracts_methods',
-    default => 0,
-);
-
-has functions => (
-    reader => 'is_extracting_functions',
-    writer => 'extracts_functions',
-    default => 0,
-);
-
-has preserve_lines => (
-    is => 'rw',
-    default => 1,
-);
-
-has object_name => (
-    is => 'ro',
-    default => '$thingy',
-);
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-sub generate_snippets {
-    my( $self, @files ) = @_;
-    my $i = 1;
-
-    print "generating snippets\n";
-
-    for ( @files ) {
-        my $testfile = sprintf "t/pod-snippets-%02d.t", $i++;
-        print "\t$_ => $testfile\n";
-        
-        open my $fh, '>', $testfile 
-                or die "can't open $testfile for writing: $!\n";
-        print {$fh} $self->extract_snippets( $_ );
-        close $fh;
+package Test::Pod::Snippets {
+    BEGIN {
+      $Test::Pod::Snippets::AUTHORITY = 'cpan:YANICK';
     }
-}
+    {
+      $Test::Pod::Snippets::VERSION = '0.07';
+    }
+    # ABSTRACT: Generate tests from pod code snippets
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    use warnings;
+    use strict;
+    use Carp;
 
-sub generate_test {
-    my $self = shift;
+    use Moose;
+    use MooseX::SemiAffordanceAccessor;
 
-    my %param = validate( @_, { 
-            pod => 0,  
-            file => 0,
-            fh => 0,
-            module => 0,
-            standalone => 0,
-            testgroup => 0,
-            sanity_tests => { default => 1 },
-        } );
+    use Module::Locate qw/ locate /;
+    use Params::Validate qw/ validate_with validate /;
 
-    my @type = grep { $param{$_} } qw/ pod file fh module /;
+    has parser => (
+        is => 'ro',
+        default => sub {
+            my $tps = Test::Pod::Snippets::Parser->new;
+            $tps->{tps} = shift;
+            return $tps;
+        },
+    );
 
-    croak "method requires one of those parameters: pod, file, fh, module" 
-        unless @type;
+    has verbatim => (
+        reader => 'is_extracting_verbatim',
+        writer => 'extracts_verbatim',
+        default => 1,
+    );
 
-    if ( @type > 1 ) {
-        croak "can only accept one of those parameters: @type";
+    has methods => (
+        reader => 'is_extracting_methods',
+        writer => 'extracts_methods',
+        default => 0,
+    );
+
+    has functions => (
+        reader => 'is_extracting_functions',
+        writer => 'extracts_functions',
+        default => 0,
+    );
+
+    has preserve_lines => (
+        is => 'rw',
+        default => 1,
+    );
+
+    has object_name => (
+        is => 'ro',
+        default => '$thingy',
+    );
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+    sub generate_snippets {
+        my( $self, @files ) = @_;
+        my $i = 1;
+
+        print "generating snippets\n";
+
+        for ( @files ) {
+            my $testfile = sprintf "t/pod-snippets-%02d.t", $i++;
+            print "\t$_ => $testfile\n";
+
+            open my $fh, '>', $testfile 
+                    or die "can't open $testfile for writing: $!\n";
+            print {$fh} $self->extract_snippets( $_ );
+            close $fh;
+        }
     }
 
-    my $code = $self->_parse( $type[0], $param{ $type[0] } );
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    if ($param{standalone} or $param{testgroup} ) {
-        $param{sanity_tests} = 1;
-    }
+    sub generate_test {
+        my $self = shift;
 
-    if( $param{sanity_tests} ) {
-        no warnings qw/ uninitialized /;
-       $code = <<"END_CODE";
+        my %param = validate( @_, { 
+                pod => 0,  
+                file => 0,
+                fh => 0,
+                module => 0,
+                standalone => 0,
+                testgroup => 0,
+                sanity_tests => { default => 1 },
+            } );
+
+        my @type = grep { $param{$_} } qw/ pod file fh module /;
+
+        croak "method requires one of those parameters: pod, file, fh, module" 
+            unless @type;
+
+        if ( @type > 1 ) {
+            croak "can only accept one of those parameters: @type";
+        }
+
+        my $code = $self->_parse( $type[0], $param{ $type[0] } );
+
+        if ($param{standalone} or $param{testgroup} ) {
+            $param{sanity_tests} = 1;
+        }
+
+        if( $param{sanity_tests} ) {
+            no warnings qw/ uninitialized /;
+           $code = <<"END_CODE";
 ok 1 => 'the tests compile';   
 
 $code
 
 ok 1 => 'we reached the end!';
 END_CODE
-    }
+        }
 
-    if ( $param{testgroup} ) {
-        my $name = $param{file}   ? $param{file} 
-                 : $param{module} ? $param{module}
-                 : 'unknown'
-                 ;
-        $code = qq#use Test::Group; #
-              . qq#Test::Group::test "$name" => sub { $code }; #;
-    }
+        if ( $param{testgroup} ) {
+            my $name = $param{file}   ? $param{file} 
+                     : $param{module} ? $param{module}
+                     : 'unknown'
+                     ;
+            $code = qq#use Test::Group; #
+                  . qq#Test::Group::test "$name" => sub { $code }; #;
+        }
 
-    my $plan = $param{standalone} ? '"no_plan"' : '' ;
+        my $plan = $param{standalone} ? '"no_plan"' : '' ;
 
-    return <<"END_CODE";
+        return <<"END_CODE";
 use Test::More $plan;
 {
 no warnings;
@@ -136,78 +136,78 @@ $code
 }
 END_CODE
 
-}
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-sub _parse {
-    my ( $self, $type, $input ) = @_;
-
-    my $output;
-    open my $output_fh, '>', \$output;
-
-    if ( $type eq 'pod' ) {
-        my $copy = $input;
-        $input = undef;
-        open $input, '<', \$copy;
-        $type = 'fh';
     }
 
-    if ( $type eq 'module' ) {
-        my $location = locate $input
-            or croak "$input not found in \@INC";
-        $input = $location;
-        $type = 'file';
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+    sub _parse {
+        my ( $self, $type, $input ) = @_;
+
+        my $output;
+        open my $output_fh, '>', \$output;
+
+        if ( $type eq 'pod' ) {
+            my $copy = $input;
+            $input = undef;
+            open $input, '<', \$copy;
+            $type = 'fh';
+        }
+
+        if ( $type eq 'module' ) {
+            my $location = locate $input
+                or croak "$input not found in \@INC";
+            $input = $location;
+            $type = 'file';
+        }
+
+        if ( $type eq 'file' ) {
+            $self->parser->parse_from_file( $input, $output_fh );
+        }
+        elsif( $type eq 'fh' ) {
+            $self->parser->parse_from_filehandle( $input, $output_fh );
+        }
+        else {
+            die "type $type unknown";
+        }
+
+        return $output;
     }
 
-    if ( $type eq 'file' ) {
-        $self->parser->parse_from_file( $input, $output_fh );
-    }
-    elsif( $type eq 'fh' ) {
-        $self->parser->parse_from_filehandle( $input, $output_fh );
-    }
-    else {
-        die "type $type unknown";
-    }
 
-    return $output;
-}
+    sub extract_snippets_from_file {
+        my( $self, $file ) = @_;
 
+        if( not -f $file ) {
+            croak "$file doesn't seem to exist";
+        }
 
-sub extract_snippets_from_file {
-    my( $self, $file ) = @_;
+        my $output;
+        open my $fh, '>', \$output;
 
-    if( not -f $file ) {
-        croak "$file doesn't seem to exist";
+        $self->parser->parse_from_file( $file, $fh );
+
+        return $self->_extract($output);
     }
 
-    my $output;
-    open my $fh, '>', \$output;
 
-    $self->parser->parse_from_file( $file, $fh );
+    sub extract_snippets {
+        my( $self, $pod ) = @_;
 
-    return $self->_extract($output);
-}
+        open my $file, '<', \$pod;
 
+        my $output;
+        open my $fh, '>', \$output;
 
-sub extract_snippets {
-    my( $self, $pod ) = @_;
+        $self->parser->parse_from_filehandle( $file, $fh );
 
-    open my $file, '<', \$pod;
+        return $self->_extract($output);
+    }
 
-    my $output;
-    open my $fh, '>', \$output;
+    sub _extract {
+        my( $self, $output ) = @_;
 
-    $self->parser->parse_from_filehandle( $file, $fh );
-
-    return $self->_extract($output);
-}
-
-sub _extract {
-    my( $self, $output ) = @_;
-
-    return <<"END_TESTS";
+        return <<"END_TESTS";
 use Test::More qw/ no_plan /;
 
 no warnings;
@@ -221,220 +221,221 @@ ok 1 => 'we reached the end!';
 
 END_TESTS
 
-}
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-sub runtest {
-    my ( $self, @args ) = @_;
-
-    my $code = $self->generate_test( @args );
-
-    eval $code;
-
-    if ( $@ ) {
-        croak "couldn't compile test: $@";
-    }
-}
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-sub snippets_ok {
-    my( $self, $file ) = @_;
-
-    my $code = $self->extract_snippets( $file );
-
-    eval $code;
-
-    warn $@ if $@;
-
-    return not $@;
-}
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-sub generate_test_file {
-    my $self = shift;
-
-    my %param = validate_with( params => \@_,
-        spec => { output => 0 },
-        allow_extra => 1,
-    );
-
-    unless( $param{output} ) {
-        my $i;
-        my $name;
-        do { 
-            $i++; 
-            $name = sprintf 'tps-%04d.t', $i 
-        } while -f $name;
-
-        $param{output} = $name;
     }
 
-    my $filename = $param{output};
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    croak "file '$filename' already exists" if -f $filename;
+    sub runtest {
+        my ( $self, @args ) = @_;
 
-    open my $fh, '>', $filename
-        or croak "can't create file '$filename': $!";
+        my $code = $self->generate_test( @args );
 
-    delete $param{output};
+        eval $code;
 
-    print {$fh} $self->generate_test( %param );
+        if ( $@ ) {
+            croak "couldn't compile test: $@";
+        }
+    }
 
-    return $filename;
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+    sub snippets_ok {
+        my( $self, $file ) = @_;
+
+        my $code = $self->extract_snippets( $file );
+
+        eval $code;
+
+        warn $@ if $@;
+
+        return not $@;
+    }
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    sub generate_test_file {
+        my $self = shift;
+
+        my %param = validate_with( params => \@_,
+            spec => { output => 0 },
+            allow_extra => 1,
+        );
+
+        unless( $param{output} ) {
+            my $i;
+            my $name;
+            do { 
+                $i++; 
+                $name = sprintf 'tps-%04d.t', $i 
+            } while -f $name;
+
+            $param{output} = $name;
+        }
+
+        my $filename = $param{output};
+
+        croak "file '$filename' already exists" if -f $filename;
+
+        open my $fh, '>', $filename
+            or croak "can't create file '$filename': $!";
+
+        delete $param{output};
+
+        print {$fh} $self->generate_test( %param );
+
+        return $filename;
+    }
+
+}
+
+
+package Test::Pod::Snippets::Parser {
+
+    use strict;
+    use warnings;
+
+    no warnings 'redefine';
+
+    use parent qw/ Pod::Parser /;
+
+    sub initialize {
+        $_[0]->SUPER::initialize;
+        $_[0]->{$_} = 0 for qw/ tps_ignore tps_ignore_all tps_within_begin_test /;
+        $_[0]->{tps_method_level} = 0;
+        $_[0]->{tps_function_level} = 0;
+    }
+
+    sub command {
+        my ($parser, $command, $paragraph, $line_nbr ) = @_;
+
+        if ( $command eq 'for' ) {
+            my( $target, $directive, $rest ) = split ' ', $paragraph, 3;
+
+            return unless $target eq 'test';
+
+            return $parser->{tps_ignore}     = 1 if $directive eq 'ignore';
+            return $parser->{tps_ignore_all} = 1 if $directive eq 'ignore_all';
+
+            $parser->{tps_ignore} = 0;
+            no warnings qw/ uninitialized /;
+            print {$parser->output_handle} join ' ', $directive, $rest;
+        }
+        elsif( $command eq 'begin' ) {
+            my( $target, $rest ) = split ' ', $paragraph, 2;
+            return unless $target eq 'test';
+            $parser->{tps_within_begin_test} = 1;
+            print {$parser->output_handle} $rest;
+        }
+        elsif( $command eq 'end' ) {
+            my( $target ) = split ' ', $paragraph, 2;
+            return unless $target eq 'test';
+
+            $parser->{tps_within_begin_test} = 0;
+        }
+        elsif( $command =~ /^head(\d+)/ ) {
+
+            return unless $parser->{tps}->is_extracting_functions 
+                       or $parser->{tps}->is_extracting_methods;
+
+            my $level = $1;
+
+            for my $type ( qw/ tps_method_level tps_function_level / ) {
+                if ( $level <= $parser->{$type} ) {
+                    $parser->{$type} = 0;
+                }
+            }
+
+            if ( $paragraph =~ /^\s*METHODS\s*$/ ) {
+                $parser->{tps_method_level} =
+                    $parser->{tps}->is_extracting_methods && $level;
+                return;
+            }
+
+            if ( $paragraph =~ /^\s*FUNCTIONS\s*$/ ) {
+                $parser->{tps_function_level} = 
+                    $parser->{tps}->is_extracting_functions && $level;
+                return;
+            }
+
+            return if $parser->{tps_ignore} or $parser->{tps_ignore_all};
+
+            my $master_level =  $parser->{tps_method_level} 
+                             || $parser->{tps_function_level}
+                             || return ;
+
+            # functions and methods are deeper than
+            # their main header
+            return unless $level > $master_level; 
+
+            $paragraph =~ s/[IBC]<(.*?)>/$1/g;  # remove markups
+
+            $paragraph =~ s/^\s+//;
+            $paragraph =~ s/\s+$//;
+
+            if ( $parser->{tps_method_level} ) {
+                if ( $paragraph =~ /^new/ ) {
+                    print {$parser->output_handle}
+                        $parser->{tps}->get_object_name,
+                        ' = $class->', $paragraph, ";\n";
+                    return;
+                }
+                else {
+                    $paragraph = $parser->{tps}->object_name.'->'.$paragraph;
+                }
+            }
+
+            my $line_ref;
+            $line_ref = "\n#line $line_nbr " . ( $parser->input_file || 'unknown')
+                        . "\n"
+                if $parser->{tps}->preserve_lines;
+
+            print {$parser->output_handle} 
+                $line_ref,
+                '@result = ', $paragraph, ";\n";
+        }
+    }
+
+    sub textblock {
+        return unless $_[0]->{tps_within_begin_test};
+
+        print_paragraph( @_ ); 
+    }
+
+    sub interior_sequence {}
+
+    sub verbatim {
+        my $self = shift;
+
+        return unless $self->{tps}->is_extracting_verbatim;
+
+        return if ( $self->{tps_ignore} or $self->{tps_ignore_all} ) 
+               and not $self->{tps_within_begin_test};
+
+        print_paragraph( $self, @_ ); 
+    }
+
+    sub print_paragraph {
+        my ( $parser, $paragraph, $line_no ) = @_;
+
+        $DB::single = 1;
+        my $filename = $parser->input_file || 'unknown';
+
+        # remove the indent
+        $paragraph =~ /^(\s*)/;
+        my $indent = $1;
+        $paragraph =~ s/^$indent//mg;
+        $paragraph = "\n#line $line_no $filename\n".$paragraph 
+            if $parser->{tps}->preserve_lines;
+
+        $paragraph .= ";\n";
+
+        print {$parser->output_handle} $paragraph;
+    }
+
 }
 
 1;
-
-package Test::Pod::Snippets::Parser;
-
-use strict;
-use warnings;
-
-no warnings 'redefine';
-
-use parent qw/ Pod::Parser /;
-
-sub initialize {
-    $_[0]->SUPER::initialize;
-    $_[0]->{$_} = 0 for qw/ tps_ignore tps_ignore_all tps_within_begin_test /;
-    $_[0]->{tps_method_level} = 0;
-    $_[0]->{tps_function_level} = 0;
-}
-
-sub command {
-    my ($parser, $command, $paragraph, $line_nbr ) = @_;
-
-    if ( $command eq 'for' ) {
-        my( $target, $directive, $rest ) = split ' ', $paragraph, 3;
-
-        return unless $target eq 'test';
-
-        return $parser->{tps_ignore}     = 1 if $directive eq 'ignore';
-        return $parser->{tps_ignore_all} = 1 if $directive eq 'ignore_all';
-
-        $parser->{tps_ignore} = 0;
-        no warnings qw/ uninitialized /;
-        print {$parser->output_handle} join ' ', $directive, $rest;
-    }
-    elsif( $command eq 'begin' ) {
-        my( $target, $rest ) = split ' ', $paragraph, 2;
-        return unless $target eq 'test';
-        $parser->{tps_within_begin_test} = 1;
-        print {$parser->output_handle} $rest;
-    }
-    elsif( $command eq 'end' ) {
-        my( $target ) = split ' ', $paragraph, 2;
-        return unless $target eq 'test';
-
-        $parser->{tps_within_begin_test} = 0;
-    }
-    elsif( $command =~ /^head(\d+)/ ) {
-
-        return unless $parser->{tps}->is_extracting_functions 
-                   or $parser->{tps}->is_extracting_methods;
-
-        my $level = $1;
-
-        for my $type ( qw/ tps_method_level tps_function_level / ) {
-            if ( $level <= $parser->{$type} ) {
-                $parser->{$type} = 0;
-            }
-        }
-
-        if ( $paragraph =~ /^\s*METHODS\s*$/ ) {
-            $parser->{tps_method_level} =
-                $parser->{tps}->is_extracting_methods && $level;
-            return;
-        }
-
-        if ( $paragraph =~ /^\s*FUNCTIONS\s*$/ ) {
-            $parser->{tps_function_level} = 
-                $parser->{tps}->is_extracting_functions && $level;
-            return;
-        }
-
-        return if $parser->{tps_ignore} or $parser->{tps_ignore_all};
-
-        my $master_level =  $parser->{tps_method_level} 
-                         || $parser->{tps_function_level}
-                         || return ;
-
-        # functions and methods are deeper than
-        # their main header
-        return unless $level > $master_level; 
-
-        $paragraph =~ s/[IBC]<(.*?)>/$1/g;  # remove markups
-
-        $paragraph =~ s/^\s+//;
-        $paragraph =~ s/\s+$//;
-
-        if ( $parser->{tps_method_level} ) {
-            if ( $paragraph =~ /^new/ ) {
-                print {$parser->output_handle}
-                    $parser->{tps}->get_object_name,
-                    ' = $class->', $paragraph, ";\n";
-                return;
-            }
-            else {
-                $paragraph = $parser->{tps}->object_name.'->'.$paragraph;
-            }
-        }
-
-        my $line_ref;
-        $line_ref = "\n#line $line_nbr " . ( $parser->input_file || 'unknown')
-                    . "\n"
-            if $parser->{tps}->preserve_lines;
-
-        print {$parser->output_handle} 
-            $line_ref,
-            '@result = ', $paragraph, ";\n";
-    }
-}
-
-sub textblock {
-    return unless $_[0]->{tps_within_begin_test};
-
-    print_paragraph( @_ ); 
-}
-
-sub interior_sequence {}
-
-sub verbatim {
-    my $self = shift;
-
-    return unless $self->{tps}->is_extracting_verbatim;
-
-    return if ( $self->{tps_ignore} or $self->{tps_ignore_all} ) 
-           and not $self->{tps_within_begin_test};
-
-    print_paragraph( $self, @_ ); 
-}
-
-sub print_paragraph {
-    my ( $parser, $paragraph, $line_no ) = @_;
-
-    $DB::single = 1;
-    my $filename = $parser->input_file || 'unknown';
-
-    # remove the indent
-    $paragraph =~ /^(\s*)/;
-    my $indent = $1;
-    $paragraph =~ s/^$indent//mg;
-    $paragraph = "\n#line $line_no $filename\n".$paragraph 
-        if $parser->{tps}->preserve_lines;
-
-    $paragraph .= ";\n";
-
-    print {$parser->output_handle} $paragraph;
-}
-
-
-'end of Test::Pod::Snippets::Parser';
-
 
 =pod
 
