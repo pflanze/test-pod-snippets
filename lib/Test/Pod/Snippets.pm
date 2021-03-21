@@ -1,14 +1,16 @@
-package Test::Pod::Snippets {
-    BEGIN {
-      $Test::Pod::Snippets::AUTHORITY = 'cpan:YANICK';
-    }
-    {
-      $Test::Pod::Snippets::VERSION = '0.07';
-    }
-    # ABSTRACT: Generate tests from pod code snippets
+BEGIN {
+  $Test::Pod::Snippets::AUTHORITY = 'cpan:YANICK';
+}
+{
+  $Test::Pod::Snippets::VERSION = '0.07';
+}
+# ABSTRACT: Generate tests from pod code snippets
 
-    use warnings;
-    use strict;
+use warnings;
+use strict;
+
+package Test::Pod::Snippets {
+
     use Carp;
 
     use Moose;
@@ -291,9 +293,6 @@ END_TESTS
 
 
 package Test::Pod::Snippets::Parser {
-
-    use strict;
-    use warnings;
 
     no warnings 'redefine';
 
