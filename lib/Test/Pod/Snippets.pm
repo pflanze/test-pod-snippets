@@ -417,7 +417,6 @@ package Test::Pod::Snippets::Parser {
     sub print_paragraph {
         my ( $parser, $paragraph, $line_no ) = @_;
 
-        $DB::single = 1;
         my $filename = $parser->input_file || 'unknown';
 
         # remove the indent
