@@ -289,8 +289,7 @@ sub generate_test_file {
 
 1;
 
-package   # hide from PAUSE
-    Test::Pod::Snippets::Parser;
+package Test::Pod::Snippets::Parser;
 
 use strict;
 use warnings;
